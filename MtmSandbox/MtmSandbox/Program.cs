@@ -1,20 +1,72 @@
 ﻿using System;
+using System.Collections.Generic;
 using Microsoft.TeamFoundation.Client;
 using Microsoft.TeamFoundation.Framework.Common;
 using Microsoft.TeamFoundation.WorkItemTracking.Client;
+using Microsoft.TeamFoundation.VersionControl.Client;
+using Microsoft.TeamFoundation.TestManagement.Client;
+
+using System.Linq;
 
 namespace ConsoleApp1
 {
 	class Program
 	{
-		const string TfsUrl = "https://dennis.visualstudio.com";
+
+        const string TfsUrl = "https://jimbo.visualstudio.com";
+        TfsTeamProjectCollection projectCollection;
 		static void Main(String[] args)
         {
-            var serverUrl = new Uri(TfsUrl);
+            //GetProjectsForServerV1(serverUrl);
+            //GetProjectsForServerV2(serverUrl);
 
-            GetProjectsForServerV1(serverUrl);
+            Program p = new Program();
             Console.WriteLine("Done. Press any key");
             Console.ReadKey();
+        }
+
+        public Program()
+        {
+            projectCollection = TfsTeamProjectCollectionFactory.GetTeamProjectCollection(new Uri(TfsUrl));
+
+            var x = GetTeamProjects();
+            foreach (var project in x)
+            {
+                var testPlans = GetTestPlans(project);
+                foreach (var plan in testPlans)
+                {
+                    Console.WriteLine(plan);
+                    
+                }
+            }
+        }
+
+        public List<string> GetTeamProjects()
+        {
+            var service = projectCollection.GetService<VersionControlServer>();
+            return service.GetAllTeamProjects(true).Select(i => i.Name).ToList();
+        }
+
+        public List<string> GetTestPlans(string teamProject)
+        {
+            var service = projectCollection.GetService<ITestManagementService>();
+            var testProject = service.GetTeamProject(teamProject);
+            return testProject.TestPlans.Query("SELECT * FROM TestPlan").Select(i => i.Name).ToList();
+        }
+
+        private static void GetProjectsForServerV2(Uri serverUrl)
+        {
+            //https://stackoverflow.com/questions/31031817/unable-to-load-dll-microsoft-witdatastore32-dll-teamfoundation-workitemtracki
+            TfsTeamProjectCollection tpc = new TfsTeamProjectCollection(serverUrl);
+            WorkItemStore workItemStore = tpc.GetService<WorkItemStore>();
+            Project teamProject = workItemStore.Projects["ARM Basic Templates"];
+            WorkItemType workItemType = teamProject.WorkItemTypes["Test Case"];
+
+            var queryResults = workItemStore.Query(
+                "Select [State], [Title] " +
+   "From WorkItems " +
+   "Where [Work Item Type] = 'Test Case' " +
+   "Order By [State] Asc, [Changed Date] Desc");
         }
 
         private static void GetProjectsForServerV1(Uri serverUrl)
